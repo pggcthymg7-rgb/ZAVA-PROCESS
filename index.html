@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zava Photogrammetry — Processamento de Imagens</title>
+    
+    <!-- FONTE URBANIST -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- LEAFLET (Mapa 2D) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- EXIFR (Leitor de GPS das fotos) -->
+    <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
+
+    <!-- THREE.JS (Visualizador 3D) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        /* PALETA DE CORES ZAVA */
+        :root {
+            --bg-dark: #1a1d29;       
+            --bg-panel: #242735;      
+            --bg-card: #2d3142;       
+            --text-main: #e6e6e6;     
+            --text-muted: #b1b2b5;    
+            --accent-gold: #d2c2ac;   
+            --accent-gold-hover: #e5d7c5;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-yellow: #eab308;
+            --border-color: #3d3f4a;  
+        }
+        
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Urbanist', sans-serif; background-color: var(--bg-dark); color: var(--text-main); overflow: hidden; display: flex; flex-direction: column; }
+        
+        /* CABEÇALHO */
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background-color: var(--bg-panel); border-bottom: 1px solid var(--border-color); z-index: 1001; }
+        .logo-area { display: flex; align-items: center; gap: 12px; }
+        .logo-area img { height: 32px; object-fit: contain; }
+        .logo-mapping { font-weight: 300; font-size: 22px; color: var(--accent-gold); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+        .header-actions { display: flex; gap: 10px; }
+        .btn-top { background: transparent; color: var(--accent-gold); border: 1px solid var(--accent-gold); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; font-size: 14px; }
+        .btn-top:hover { background: rgba(210,194,172,0.1); }
+
+        /* LAYOUT PRINCIPAL */
+        .container { display: flex; flex-grow: 1; height: calc(100% - 58px); position: relative; overflow: hidden; }
+        
+        /* BARRA LATERAL (UPLOAD E STATUS) */
+        .sidebar { width: 320px; background: var(--bg-panel); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; z-index: 1000; }
+        .sidebar-content { flex-grow: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+        .sidebar-content::-webkit-scrollbar { width: 6px; }
+        .sidebar-content::-webkit-scrollbar-thumb { background: var(--accent-gold); border-radius: 4px; }
+        
+        .panel { background: var(--bg-card); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color); }
+        .panel-title { font-size: 11px; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 12px 0; font-weight: 700; }
+        
+        /* ÁREA DE UPLOAD */
+        .upload-zone { border: 2px dashed var(--border-color); border-radius: 10px; padding: 30px 10px; text-align: center; cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.02); }
+        .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent-gold); background: rgba(210,194,172,0.05); }
+        .upload-zone svg { width: 40px; height: 40px; fill: var(--text-muted); margin-bottom: 10px; transition: 0.2s; }
+        .upload-zone:hover svg { fill: var(--accent-gold); }
+        .upload-zone p { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-main); }
+        .upload-zone span { font-size: 12px; color: var(--text-muted); display: block; margin-top: 5px; }
+        #file-input { display: none; }
+
+        /* LISTA DE ARQUIVOS */
+        #file-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
+        #file-list::-webkit-scrollbar { width: 4px; }
+        #file-list::-webkit-scrollbar-thumb { background: var(--border-color); }
+        .file-item { display: flex; align-items: center; justify-content: space-between; background: var(--bg-dark); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; }
+        .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+        .file-status { color: var(--accent-green); font-weight: bold; }
+
+        /* ÁREA DE VISUALIZAÇÃO (MAPA / 3D) */
+        .viewport { flex-grow: 1; position: relative; background: #000; }
+        
+        /* ABAS */
+        .tabs { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; background: rgba(26,29,41,0.9); backdrop-filter: blur(10px); border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .tab-btn { padding: 10px 24px; background: transparent; border: none; color: var(--text-muted); font-family: 'Urbanist', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; }
+        .tab-btn.active { background: var(--accent-gold); color: var(--bg-dark); }
+        .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.05); color: var(--text-main); }
+
+        .view-pane { width: 100%; height: 100%; display: none; }
+        .view-pane.active { display: block; }
+        #map { width: 100%; height: 100%; }
+        #3d-canvas-container { width: 100%; height: 100%; cursor: grab; }
+        #3d-canvas-container:active { cursor: grabbing; }
+
+        /* OVERLAY DE CARREGAMENTO */
+        #loading-overlay { display: none; position: absolute; inset: 0; background: rgba(26,29,41,0.85); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--border-color); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading-text { font-size: 16px; font-weight: 600; color: var(--accent-gold); }
+
+        /* RESPONSIVIDADE MOBILE */
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--border-color); }
+            .viewport { height: 55vh; flex-grow: none; }
+            .tabs { top: auto; bottom: 16px; }
+            .logo-mapping { font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <img src="logo.png" alt="ZAVA" onerror="this.style.display='none'">
+            <span class="logo-mapping">Photogrammetry</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn-top" onclick="clearProject()">🗑 Limpar Projeto</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- BARRA LATERAL -->
+        <div class="sidebar">
+            <div class="sidebar-content">
+                <div class="panel">
+                    <div class="panel-title">1. Importar Fotos do Drone</div>
+                    <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                        <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                        <p>Arraste as fotos aqui</p>
+                        <span>ou clique para selecionar</span>
+                    </div>
+                    <input type="file" id="file-input" accept="image/jpeg, image/jpg" multiple>
+                </div>
+
+                <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column;">
+                    <div class="panel-title">Fotos Processadas (<span id="count-files">0</span>)</div>
+                    <div id="file-list">
+                        <div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 10px;">Nenhuma foto importada.</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Status do Projeto</div>
+                    <div style="font-size: 13px; line-height: 1.5;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span>Armazenamento:</span>
+                            <span id="storage-status" style="color:var(--accent-gold); font-weight:bold;">Verificando...</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <span>Motor 3D:</span>
+                            <span style="color:var(--accent-green); font-weight:bold;">Pronto</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ÁREA DE VISUALIZAÇÃO -->
+        <div class="viewport">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('map')">🗺️ Mapa 2D</button>
+                <button class="tab-btn" onclick="switchTab('3d')">📦 Visualizador 3D</button>
+            </div>
+
+            <!-- ABA 1: MAPA -->
+            <div id="pane-map" class="view-pane active">
+                <div id="map"></div>
+            </div>
+
+            <!-- ABA 2: 3D -->
+            <div id="pane-3d" class="view-pane">
+                <div id="3d-canvas-container"></div>
+            </div>
+
+            <!-- OVERLAY DE CARREGAMENTO -->
+            <div id="loading-overlay">
+                <div class="spinner"></div>
+                <div id="loading-text">Lendo dados das fotos...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURAÇÃO INICIAL
+        // ==========================================
+        let photoData = []; // Armazena { name, lat, lng, alt, file }
+        let map, markerGroup;
+        let scene, camera, renderer, controls;
+
+        // Inicializa o Mapa Leaflet
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([-16.6869, -49.2643], 15);
+            L.control.zoom({ position: 'topright' }).addTo(map);
+            L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] }).addTo(map);
+            markerGroup = L.featureGroup().addTo(map);
+        }
+
+        // Inicializa o Visualizador 3D (Three.js)
+        function init3D() {
+            const container = document.getElementById('3d-canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color('#1a1d29');
+            
+            camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 10000);
+            camera.position.set(0, 50, 100);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            // Grade de fundo simulando o chão
+            const grid = new THREE.GridHelper(200, 20, 0xd2c2ac, 0x3d3f4a);
+            grid.position.y = -1;
+            scene.add(grid);
+
+            // Iluminação básica
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            dirLight.position.set(10, 20, 10);
+            scene.add(dirLight);
+
+            // Animação da câmera
+            function animate() {
+                requestAnimationFrame(animate);
+                // Rotação lenta para mostrar que está ativo
+                scene.rotation.y += 0.001; 
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Ajuste de tela
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        // ==========================================
+        // GERENCIAMENTO DE ABAS
+        // ==========================================
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.view-pane').forEach(pane => pane.classList.remove('active'));
+            
+            if(tab === 'map') {
+                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+                document.getElementById('pane-map').classList.add('active');
+                map.invalidateSize(); // Corrige bug visual do Leaflet
+            } else {
+                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+                document.getElementById('pane-3d').classList.add('active');
+            }
+        }
+
+        // ==========================================
+        // OPFS (SALVAMENTO LOCAL NO NAVEGADOR)
+        // ==========================================
+        async function initOPFS() {
+            try {
+                if (!navigator.storage || !navigator.storage.getDirectory) {
+                    document.getElementById('storage-status').innerText = 'Não suportado';
+                    document.getElementById('storage-status').style.color = 'var(--accent-red)';
+                    return false;
+                }
+                const root = await navigator.storage.getDirectory();
+                document.getElementById('storage-status').innerText = 'OPFS Pronto';
+                document.getElementById('storage-status').style.color = 'var(--accent-green)';
+                return true;
+            } catch (e) {
+                console.error('Erro OPFS:', e);
+                document.getElementById('storage-status').innerText = 'Erro';
+                return false;
+            }
+        }
+
+        async function saveFileToOPFS(file) {
+            try {
+                const root = await navigator.storage.getDirectory();
+                // Cria uma pasta chamada "zava_project"
+                const dir = await root.getDirectoryHandle('zava_project', { create: true });
+                const fileHandle = await dir.getFileHandle(file.name, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(file);
+                await writable.close();
+            } catch (e) {
+                console.error('Erro ao salvar foto no OPFS:', e);
+            }
+        }
+
+        // ==========================================
+        // UPLOAD E PROCESSAMENTO DE FOTOS
+        // ==========================================
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+
+        // Eventos de Drag & Drop
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFiles(e.target.files);
+        });
+
+        async function handleFiles(files) {
+            const validFiles = Array.from(files).filter(f => f.type === 'image/jpeg' || f.type === 'image/jpg');
+            if (validFiles.length === 0) return alert("Por favor, envie imagens JPG.");
+
+            loadingOverlay.style.display = 'flex';
+            loadingText.innerText = `Lendo ${validFiles.length} fotos...`;
+
+            for (const file of validFiles) {
+                try {
+                    // 1. Salva no OPFS localmente (rápido)
+                    await saveFileToOPFS(file);
+
+                    // 2. Lê o GPS via EXIF
+                    const gps = await exifr.gps(file);
+                    
+                    if (gps && gps.latitude && gps.longitude) {
+                        const data = {
+                            name: file.name,
+                            lat: gps.latitude,
+                            lng: gps.longitude,
+                            alt: gps.GPSAltitude || 0
+                        };
+                        photoData.push(data);
+                    } else {
+                        console.warn(`Foto sem GPS: ${file.name}`);
+                    }
+                } catch (err) {
+                    console.error('Erro no arquivo', file.name, err);
+                }
+            }
+
+            loadingOverlay.style.display = 'none';
+            updateUI();
+        }
+
+        // ==========================================
+        // ATUALIZAÇÃO DA INTERFACE
+        // ==========================================
+        function updateUI() {
+            // Atualiza contador
+            document.getElementById('count-files').innerText = photoData.length;
+
+            // Atualiza lista lateral
+            const listEl = document.getElementById('file-list');
+            listEl.innerHTML = '';
+            
+            if (photoData.length === 0) {
+                listEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 10px;">Nenhuma foto com GPS importada.</div>';
+                return;
+            }
+
+            photoData.forEach((p, index) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <span class="file-name" title="${p.name}">${p.name}</span>
+                    <span class="file-status">GPS OK</span>
+                `;
+                listEl.appendChild(div);
+            });
+
+            // Desenha no Mapa
+            markerGroup.clearLayers();
+            const latLngs = [];
+
+            photoData.forEach((p, i) => {
+                const latlng = [p.lat, p.lng];
+                latLngs.push(latlng);
+                
+                const marker = L.circleMarker(latlng, {
+                    radius: 4,
+                    fillColor: '#d2c2ac',
+                    color: '#fff',
+                    weight: 1,
+                    fillOpacity: 0.9
+                }).bindTooltip(`Foto ${i+1}: ${p.name}<br>Alt: ${p.alt.toFixed(1)}m`);
+
+                markerGroup.addLayer(marker);
+            });
+
+            // Ajusta o zoom do mapa para abranger todas as fotos
+            if (latLngs.length > 0) {
+                map.fitBounds(L.latLngBounds(latLngs), { padding: [50, 50] });
+            }
+
+            // Simula a plotagem 3D (na Fase 2 substituiremos por pontos reais)
+            update3DView();
+        }
+
+        function update3DView() {
+            // Limpa o que tiver na cena (exceto grid e luzes)
+            for (let i = scene.children.length - 1; i >= 0; i--) {
+                if (scene.children[i].type === 'Mesh' || scene.children[i].type === 'Points') {
+                    scene.remove(scene.children[i]);
+                }
+            }
+
+            if (photoData.length === 0) return;
+
+            // Gera pontos aleatórios baseados na quantidade de fotos para simular a nuvem
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const numPoints = photoData.length * 50; // Simulação
+
+            for (let i = 0; i < numPoints; i++) {
+                // Espalha os pontos numa área de 100x100
+                const x = (Math.random() - 0.5) * 100;
+                const y = Math.random() * 20; // Altura
+                const z = (Math.random() - 0.5) * 100;
+                vertices.push(x, y, z);
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            const material = new THREE.PointsMaterial({ color: 0xd2c2ac, size: 1 });
+            const points = new THREE.Points(geometry, material);
+            scene.add(points);
+        }
+
+        function clearProject() {
+            if(confirm("Tem certeza que deseja apagar todas as fotos do projeto atual?")) {
+                photoData = [];
+                markerGroup.clearLayers();
+                updateUI();
+                // Aqui limparíamos o OPFS também, mas deixaremos essa função para a próxima fase
+            }
+        }
+
+        // ==========================================
+        // INICIALIZAÇÃO
+        // ==========================================
+        window.onload = async () => {
+            initMap();
+            init3D();
+            await initOPFS();
+            
+            // Pequeno delay para garantir que o Leaflet renderize certo
+            setTimeout(() => map.invalidateSize(), 500);
+        };
+
+    </script>
+</body>
+</html>
