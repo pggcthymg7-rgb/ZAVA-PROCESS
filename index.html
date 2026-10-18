@@ -10,22 +10,25 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- LEAFLET (Mapa 2D) -->
+    <!-- LEAFLET -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- EXIFR (Leitor de GPS) -->
+    <!-- EXIFR -->
     <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 
-    <!-- THREE.JS e ORBIT CONTROLS (Visualizador 3D) -->
+    <!-- THREE.JS e ORBIT CONTROLS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     
-    <!-- JSPDF (Relatório) -->
+    <!-- TURF (Para desenhar o polígono da área) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <!-- JSPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
-        /* PALETA DE CORES ZAVA */
+        /* PALETA ZAVA */
         :root {
             --bg-dark: #1a1d29;       
             --bg-panel: #242735;      
@@ -58,12 +61,20 @@
         .panel { background: var(--bg-card); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color); }
         .panel-title { font-size: 11px; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 12px 0; font-weight: 700; }
         
-        /* UPLOAD */
-        .upload-zone { border: 2px dashed var(--border-color); border-radius: 10px; padding: 24px 10px; text-align: center; cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.02); }
-        .upload-zone:hover { border-color: var(--accent-gold); background: rgba(210,194,172,0.05); }
+        /* UPLOAD (Corrigido para Mobile) */
+        .upload-zone { 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border: 2px dashed var(--border-color); border-radius: 10px; padding: 24px 10px; 
+            cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.02); 
+            position: relative;
+        }
+        .upload-zone:hover, .upload-zone:active { border-color: var(--accent-gold); background: rgba(210,194,172,0.05); }
         .upload-zone svg { width: 32px; height: 32px; fill: var(--text-muted); margin-bottom: 8px; }
-        .upload-zone p { margin: 0; font-size: 14px; font-weight: 600; }
-        #file-input { display: none; }
+        .upload-zone p { margin: 0; font-size: 14px; font-weight: 600; pointer-events: none; }
+        .upload-zone span { font-size: 12px; color: var(--text-muted); pointer-events: none; }
+        
+        /* O input fica invisível mas cobre a área toda para garantir o clique no celular */
+        #file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
 
         /* BOTOES */
         .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 14px; font-family: 'Urbanist', sans-serif; display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -97,7 +108,7 @@
         .spinner { width: 40px; height: 40px; border: 4px solid var(--border-color); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* CONTROLES FLUTUANTES (TOUR 3D) */
+        /* CONTROLES FLUTUANTES */
         #tour-controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: none; gap: 10px; z-index: 1500; }
         .btn-tour { background: rgba(26,29,41,0.9); border: 1px solid var(--accent-gold); color: var(--accent-gold); padding: 10px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; backdrop-filter: blur(5px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         .btn-tour:hover { background: var(--accent-gold); color: var(--bg-dark); }
@@ -127,20 +138,21 @@
     </header>
 
     <div class="container">
-        <!-- SIDEBAR (PAINEL ESQUERDO) -->
+        <!-- SIDEBAR -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-content">
                 <!-- 1. UPLOAD -->
                 <div class="panel" id="panel-upload">
                     <div class="panel-title">1. Fotos do Drone</div>
-                    <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+                    <div class="upload-zone">
+                        <!-- O input cobre a área toda para garantir o toque -->
+                        <input type="file" id="file-input" accept="image/jpeg, image/jpg" multiple>
                         <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
                         <p>Adicionar Imagens</p>
-                        <span style="font-size:12px; color:var(--text-muted);">JPG com GPS</span>
+                        <span>JPG com GPS</span>
                     </div>
-                    <input type="file" id="file-input" accept="image/jpeg, image/jpg" multiple>
                     <div style="font-size:12px; margin-top:10px; color:var(--text-muted); text-align:center;">
-                        <span id="count-files">0</span> fotos importadas
+                        <span id="count-files" style="color:var(--accent-gold); font-weight:bold;">0</span> fotos importadas
                     </div>
                 </div>
 
@@ -173,19 +185,19 @@
             </div>
         </div>
 
-        <!-- VIEWPORT (DIREITA) -->
+        <!-- VIEWPORT -->
         <div class="viewport">
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('map')">🗺️ Mapa 2D</button>
                 <button class="tab-btn" onclick="switchTab('3d')">📦 Nuvem 3D</button>
             </div>
 
-            <!-- MAPA 2D -->
+            <!-- MAPA -->
             <div id="pane-map" class="view-pane active">
                 <div id="map"></div>
             </div>
 
-            <!-- VISUALIZADOR 3D -->
+            <!-- 3D -->
             <div id="pane-3d" class="view-pane">
                 <div id="3d-canvas-container"></div>
                 <div id="tour-controls">
@@ -193,7 +205,7 @@
                 </div>
             </div>
 
-            <!-- LOADING OVERLAY -->
+            <!-- LOADING -->
             <div id="loading-overlay">
                 <div class="spinner"></div>
                 <div id="loading-text" style="font-size:16px; font-weight:600; color:var(--accent-gold);">Processando...</div>
@@ -203,15 +215,12 @@
 
     <script>
         // ==========================================
-        // 1. ESTADO GLOBAL E VARIÁVEIS
+        // 1. ESTADO GLOBAL
         // ==========================================
-        let photos = []; // { name, lat, lng, alt }
+        let photos = [];
         let isProcessed = false;
         
-        // Leaflet
         let map, markersLayer, polygonLayer;
-        
-        // Three.js
         let scene, camera, renderer, controls, pointCloud;
         let isTourActive = false;
         let tourTime = 0;
@@ -220,11 +229,9 @@
         // 2. INICIALIZAÇÃO
         // ==========================================
         function initMap() {
-            // Inicia o mapa em Goiânia como padrão
             map = L.map('map', { zoomControl: false }).setView([-16.6869, -49.2643], 15);
             L.control.zoom({ position: 'topright' }).addTo(map);
             L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 22, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] }).addTo(map);
-            
             markersLayer = L.featureGroup().addTo(map);
             polygonLayer = L.featureGroup().addTo(map);
         }
@@ -233,7 +240,6 @@
             const container = document.getElementById('3d-canvas-container');
             scene = new THREE.Scene();
             scene.background = new THREE.Color('#111');
-            // Adiciona uma névoa para dar profundidade
             scene.fog = new THREE.FogExp2('#111', 0.005);
 
             camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 2000);
@@ -246,27 +252,22 @@
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
-            controls.maxPolarAngle = Math.PI / 2 + 0.1; // Não deixa ir muito pra baixo do chão
+            controls.maxPolarAngle = Math.PI / 2 + 0.1;
 
-            // Luzes
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambientLight);
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
             dirLight.position.set(50, 100, 50);
             scene.add(dirLight);
 
-            // Grid
             const grid = new THREE.GridHelper(300, 30, 0xd2c2ac, 0x3d3f4a);
             grid.material.opacity = 0.2;
             grid.material.transparent = true;
             scene.add(grid);
 
-            // Loop de animação
             function animate() {
                 requestAnimationFrame(animate);
-                
                 if (isTourActive && camera) {
-                    // Lógica simples de Tour Automático
                     tourTime += 0.005;
                     const radius = 100;
                     camera.position.x = Math.sin(tourTime) * radius;
@@ -276,12 +277,10 @@
                 } else {
                     controls.update();
                 }
-                
                 renderer.render(scene, camera);
             }
             animate();
 
-            // Resize
             window.addEventListener('resize', () => {
                 camera.aspect = container.clientWidth / container.clientHeight;
                 camera.updateProjectionMatrix();
@@ -296,11 +295,15 @@
         };
 
         // ==========================================
-        // 3. UPLOAD E LEITURA EXIF
+        // 3. UPLOAD E LEITURA EXIF (Corrigido)
         // ==========================================
         document.getElementById('file-input').addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files).filter(f => f.type === 'image/jpeg');
-            if (files.length === 0) return;
+            const files = Array.from(e.target.files).filter(f => f.type === 'image/jpeg' || f.type === 'image/jpg');
+            
+            if (files.length === 0) {
+                alert("Por favor, selecione arquivos JPG.");
+                return;
+            }
 
             const overlay = document.getElementById('loading-overlay');
             const overlayText = document.getElementById('loading-text');
@@ -308,21 +311,28 @@
             overlayText.innerText = `Lendo dados de ${files.length} fotos...`;
 
             let newPhotos = 0;
+            let errorCount = 0;
 
             for (const file of files) {
                 try {
+                    // Tenta ler os dados de GPS
                     const gps = await exifr.gps(file);
-                    if (gps && gps.latitude && gps.longitude) {
+                    
+                    if (gps && gps.latitude !== undefined && gps.longitude !== undefined) {
                         photos.push({
                             name: file.name,
                             lat: gps.latitude,
                             lng: gps.longitude,
-                            alt: gps.GPSAltitude || 50 // Padrão se não achar
+                            alt: gps.GPSAltitude || 50 
                         });
                         newPhotos++;
+                    } else {
+                        console.warn("Sem GPS:", file.name);
+                        errorCount++;
                     }
                 } catch (err) {
-                    console.warn("Erro ao ler EXIF", file.name);
+                    console.warn("Erro EXIF:", file.name, err);
+                    errorCount++;
                 }
             }
 
@@ -332,7 +342,13 @@
             if (newPhotos > 0) {
                 document.getElementById('panel-process').style.display = 'block';
                 plotPhotosOnMap();
+                alert(`✅ ${newPhotos} fotos importadas com sucesso! ${errorCount > 0 ? `\n⚠️ ${errorCount} fotos foram ignoradas por não terem GPS.` : ''}`);
+            } else {
+                alert(`❌ Falha na importação.\n\nNenhuma das fotos selecionadas possui dados de GPS no EXIF. Verifique se você está usando as fotos originais do cartão SD do drone (não podem ser editadas ou exportadas pelo WhatsApp/redes sociais).`);
             }
+            
+            // Limpa o input para permitir subir as mesmas fotos de novo se quiser
+            e.target.value = "";
         });
 
         function plotPhotosOnMap() {
@@ -344,17 +360,18 @@
                 latlngs.push([p.lat, p.lng]);
                 L.circleMarker([p.lat, p.lng], {
                     radius: 4, fillColor: '#d2c2ac', color: '#fff', weight: 1, fillOpacity: 0.8
-                }).bindTooltip(`Alt: ${p.alt.toFixed(1)}m`).addTo(markersLayer);
+                }).bindTooltip(`${p.name}<br>Alt: ${p.alt.toFixed(1)}m`).addTo(markersLayer);
             });
 
-            if (latlngs.length > 2) {
-                // Gera um polígono visual da área coberta
-                const hull = turf.convex(turf.featureCollection(latlngs.map(ll => turf.point([ll[1], ll[0]]))));
-                if (hull) {
-                    L.geoJSON(hull, {
-                        style: { color: '#d2c2ac', weight: 2, fillOpacity: 0.1, dashArray: '5,5' }
-                    }).addTo(polygonLayer);
-                }
+            if (latlngs.length > 2 && typeof turf !== 'undefined') {
+                try {
+                    const hull = turf.convex(turf.featureCollection(latlngs.map(ll => turf.point([ll[1], ll[0]]))));
+                    if (hull) {
+                        L.geoJSON(hull, {
+                            style: { color: '#d2c2ac', weight: 2, fillOpacity: 0.1, dashArray: '5,5' }
+                        }).addTo(polygonLayer);
+                    }
+                } catch(e) { console.log("Erro ao desenhar área", e); }
             }
 
             if (latlngs.length > 0) {
@@ -363,7 +380,7 @@
         }
 
         // ==========================================
-        // 4. SIMULAÇÃO DO PROCESSAMENTO
+        // 4. SIMULAÇÃO PROCESSAMENTO
         // ==========================================
         function startProcessing() {
             if (photos.length === 0) return;
@@ -380,20 +397,19 @@
             const steps = [
                 "Extraindo características (SIFT)...",
                 "Encontrando correspondências...",
-                "Estimando poses das câmeras...",
-                "Gerando nuvem de pontos esparsa...",
-                "Densificando nuvem de pontos...",
-                "Construindo malha 3D...",
+                "Estimando poses...",
+                "Gerando nuvem esparsa...",
+                "Densificando nuvem...",
+                "Construindo malha...",
                 "Gerando ortomosaico...",
                 "Finalizando..."
             ];
 
             const interval = setInterval(() => {
-                progress += Math.random() * 5 + 2; // Avança de 2 a 7% por tick
+                progress += Math.random() * 5 + 2;
                 if (progress > 100) progress = 100;
                 
                 progFill.style.width = progress + '%';
-                
                 const stepIndex = Math.min(Math.floor((progress / 100) * steps.length), steps.length - 1);
                 progText.innerText = steps[stepIndex];
 
@@ -415,69 +431,52 @@
         }
 
         // ==========================================
-        // 5. GERAÇÃO DA NUVEM DE PONTOS 3D
+        // 5. NUVEM 3D SIMULADA
         // ==========================================
         function generate3DCloud() {
-            // Limpa nuvem anterior se existir
             if (pointCloud) scene.remove(pointCloud);
 
             const geometry = new THREE.BufferGeometry();
             const positions = [];
             const colors = [];
 
-            // Calcula os limites geográficos
             const lats = photos.map(p => p.lat);
             const lngs = photos.map(p => p.lng);
             const minLat = Math.min(...lats), maxLat = Math.max(...lats);
             const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
 
-            // Gera pontos simulando o terreno entre as fotos
-            const numPoints = photos.length * 200; 
+            // Limite de pontos reduzido para não travar no celular
+            const numPoints = Math.min(photos.length * 50, 5000); 
             
             for (let i = 0; i < numPoints; i++) {
-                // Gera um ponto aleatório dentro da área
                 const lat = minLat + Math.random() * (maxLat - minLat);
                 const lng = minLng + Math.random() * (maxLng - minLng);
                 
-                // Converte para X, Z (plano)
                 const x = (lng - minLng) / (maxLng - minLng) * 200 - 100;
                 const z = -(lat - minLat) / (maxLat - minLat) * 200 + 100;
-                
-                // Simula altura do terreno (Y) com uma onda suave (ruído)
                 const y = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 10 + Math.random() * 2;
 
                 positions.push(x, y, z);
 
-                // Colore baseado na altura (mais baixo = verde, mais alto = dourado)
                 const color = new THREE.Color();
-                if (y < 0) {
-                    color.setHSL(0.35, 0.5, 0.3); // Verde escuro
-                } else {
-                    color.setHSL(0.1, 0.4, 0.5 + (y/20)*0.3); // Dourado/Areia
-                }
+                if (y < 0) color.setHSL(0.35, 0.5, 0.3); 
+                else color.setHSL(0.1, 0.4, 0.5 + (y/20)*0.3); 
                 colors.push(color.r, color.g, color.b);
             }
 
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
             geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
-            const material = new THREE.PointsMaterial({ 
-                size: 0.8, 
-                vertexColors: true,
-                transparent: true,
-                opacity: 0.8
-            });
-            
+            const material = new THREE.PointsMaterial({ size: 1, vertexColors: true, transparent: true, opacity: 0.8 });
             pointCloud = new THREE.Points(geometry, material);
             scene.add(pointCloud);
 
-            // Move a câmera para ver a nuvem toda
             camera.position.set(0, 100, 200);
             controls.target.set(0, 0, 0);
         }
 
         // ==========================================
-        // 6. INTERFACE E ABAS
+        // 6. INTERFACE, TOUR E DOWNLOADS
         // ==========================================
         function switchTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -491,7 +490,7 @@
                 document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
                 document.getElementById('pane-3d').classList.add('active');
             }
-            if(window.innerWidth <= 768) toggleSidebar(false); // Fecha menu no mobile
+            if(window.innerWidth <= 768) toggleSidebar(false);
         }
 
         function toggleSidebar(force) {
@@ -500,20 +499,11 @@
             else sidebar.classList.toggle('open');
         }
 
-        // ==========================================
-        // 7. TOUR 3D E DOWNLOADS
-        // ==========================================
         function toggleTour() {
             isTourActive = !isTourActive;
             const btn = document.getElementById('btn-tour');
-            
-            if (isTourActive) {
-                btn.innerText = "⏸ Pausar Tour";
-                controls.enabled = false; // Desativa o mouse para não brigar com a animação
-            } else {
-                btn.innerText = "▶ Iniciar Tour 3D";
-                controls.enabled = true;
-            }
+            btn.innerText = isTourActive ? "⏸ Pausar Tour" : "▶ Iniciar Tour 3D";
+            controls.enabled = !isTourActive;
         }
 
         function downloadReport() {
@@ -523,12 +513,10 @@
             doc.setFont("helvetica", "bold");
             doc.setFontSize(22);
             doc.text("Zava Photogrammetry", 20, 20);
-            
             doc.setFontSize(12);
             doc.setTextColor(100);
             doc.text("Relatório Técnico de Mapeamento Aéreo", 20, 30);
-            
-            doc.setDrawColor(210, 194, 172); // Dourado
+            doc.setDrawColor(210, 194, 172);
             doc.line(20, 35, 190, 35);
 
             doc.setTextColor(0);
@@ -540,7 +528,6 @@
             doc.text(`Data de Geração: ${new Date().toLocaleString()}`, 20, 60);
             doc.text(`Total de Fotos Processadas: ${photos.length}`, 20, 68);
             
-            // Calcula área aproximada (simulação)
             const areaM2 = photos.length * 150;
             doc.text(`Área Estimada: ${areaM2.toFixed(2)} m² (${(areaM2/10000).toFixed(2)} ha)`, 20, 76);
 
@@ -553,44 +540,30 @@
             doc.text(`GSD Estimado: 1.50 cm/px`, 20, 108);
             doc.text(`Sobreposição: 75% Frontal / 70% Lateral`, 20, 116);
 
-            doc.setFont("helvetica", "italic");
-            doc.setTextColor(150);
-            doc.text("Este é um relatório gerado automaticamente pelo sistema Zava.", 20, 280);
-
-            doc.save("Zava_Relatorio_Tecnico.pdf");
+            doc.save("Zava_Relatorio.pdf");
         }
 
         function downloadPointCloud() {
-            // Gera um arquivo .xyz (texto simples: X Y Z R G B)
+            if (!pointCloud) return alert("Processe o modelo primeiro.");
             let content = "";
-            const positions = pointCloud.geometry.attributes.position.array;
-            const colors = pointCloud.geometry.attributes.color.array;
+            const pos = pointCloud.geometry.attributes.position.array;
+            const col = pointCloud.geometry.attributes.color.array;
 
-            for (let i = 0; i < positions.length; i += 3) {
-                const x = positions[i].toFixed(3);
-                const y = positions[i+1].toFixed(3);
-                const z = positions[i+2].toFixed(3);
-                // Converter cor float para 0-255
-                const r = Math.round(colors[i] * 255);
-                const g = Math.round(colors[i+1] * 255);
-                const b = Math.round(colors[i+2] * 255);
-                
-                content += `${x} ${y} ${z} ${r} ${g} ${b}\n`;
+            for (let i = 0; i < pos.length; i += 3) {
+                content += `${pos[i].toFixed(3)} ${pos[i+1].toFixed(3)} ${pos[i+2].toFixed(3)} ${Math.round(col[i]*255)} ${Math.round(col[i+1]*255)} ${Math.round(col[i+2]*255)}\n`;
             }
 
             const blob = new Blob([content], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Zava_Nuvem_Pontos_${Date.now()}.xyz`;
+            a.download = `Zava_Nuvem_Pontos.xyz`;
             a.click();
             URL.revokeObjectURL(url);
         }
 
         function downloadMapImage() {
-            // Como o mapa é feito de tiles externos, precisamos de uma biblioteca extra para "printar" a tela.
-            // Como solução simples, avisamos o usuário para tirar print ou usar uma lib como leaflet-image.
-            alert("Para baixar o ortomosaico em alta resolução (GeoTIFF), o processamento real precisa ser ativado. Nesta versão de simulação, use a função de print da tela do seu celular/computador.");
+            alert("Para salvar o mapa em alta resolução, tire um print da tela (Screenshot). Na versão final, adicionaremos a exportação de GeoTIFF.");
         }
     </script>
 </body>
